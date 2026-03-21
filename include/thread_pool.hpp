@@ -12,7 +12,7 @@
 class ThreadPool
 {
     private:
-        TaskQueue queue_;
+        TaskQueue task_queue_;
         std::vector<std::unique_ptr<Worker>> workers_;
         std::atomic<bool> shutdown_{false};
         std::atomic<int> active_task_{0};
