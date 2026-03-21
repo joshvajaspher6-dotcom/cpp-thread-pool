@@ -11,7 +11,6 @@ void TaskQueue::push(std::function<void()> task)
     }
     cv_.notify_one();
 }
-
 std::optional<std::function<void()>> TaskQueue::pop()
 {
     std::unique_lock<std::mutex> lock(mtx_);
