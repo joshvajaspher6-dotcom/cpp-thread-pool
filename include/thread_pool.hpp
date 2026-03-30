@@ -1,5 +1,6 @@
 #pragma once
 
+#include <exception>
 #include <iterator>
 #include <vector>
 #include <atomic>
@@ -36,8 +37,14 @@ public:
 
             std::future<return_type> future = promise->get_future();
 
-            submit([promise,func = std::forward<F>(func)](){
+            submit([promise,func = std::forward<F>(func)]()mutable{
+                try{
                     promise->set_value(func());
+                }
+                catch(const std::exception& e)
+                {
+                    promise->set_exception(std::current_exception());
+                }
             });
 
             return future;
