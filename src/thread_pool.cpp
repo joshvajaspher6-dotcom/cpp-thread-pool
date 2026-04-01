@@ -3,6 +3,9 @@
 #include <functional>
 #include <memory>
 #include <thread>
+#include "../include/priority.hpp"
+#include "../include/priority_task_queue.hpp"
+
 
 ThreadPool::ThreadPool(int num_threads):num_threads_(num_threads)
 {
@@ -30,6 +33,7 @@ void ThreadPool::stop()
 {
     shutdown_ = true;
     task_queue_.stop();
+    // priority_queue_.stop();
 }
 
 void ThreadPool::submit(std::function<void()> task)
@@ -42,9 +46,21 @@ void ThreadPool::submit(std::function<void()> task)
     });
 }
 
+void ThreadPool::submit(std::function<void()> task,
+                        Priority priority)
+{
+    if (shutdown_) return;
+    active_task_++;
+    task_queue_.push(
+        [this, task = std::move(task)]{
+            task();
+            active_task_--;
+        });
+}
+
 void ThreadPool::wait_all()
 {
-    while (active_task_ > 0 || !task_queue_.empty())
+    while (active_task_ > 0 || !task_queue_.empty() )
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
