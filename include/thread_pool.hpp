@@ -17,13 +17,14 @@
 class ThreadPool {
 private:
     TaskQueue                            task_queue_;
-    //PriorityTaskQueue                    priority_queue_;
+    PriorityTaskQueue                    priority_queue_;
     std::vector<std::unique_ptr<Worker>> workers_;
     std::atomic<bool>                    shutdown_{false};
     std::atomic<int>                     active_task_{0};
     std::atomic<int>                     num_threads_;
 
     void spawn_worker(int id);
+
 
 public:
     explicit ThreadPool(int num_threads =
@@ -56,31 +57,31 @@ public:
             return future;
         }
 
-    // template<typename F>
-    // auto submit_task(F&& func, Priority priority)
-    //     -> std::future<typename std::result_of<F()>::type>
-    // {
-    //     using ReturnType =
-    //         typename std::result_of<F()>::type;
+    template<typename F>
+    auto submit_task(F&& func, Priority priority)
+        -> std::future<typename std::result_of<F()>::type>
+    {
+        using ReturnType =
+            typename std::result_of<F()>::type;
 
-    //     auto promise = std::make_shared<
-    //         std::promise<ReturnType>>();
+        auto promise = std::make_shared<
+            std::promise<ReturnType>>();
 
-    //     std::future<ReturnType> future =
-    //         promise->get_future();
+        std::future<ReturnType> future =
+            promise->get_future();
 
-    //     submit([promise,
-    //             func = std::forward<F>(func)]() mutable {
-    //         try {
-    //             promise->set_value(func());
-    //         } catch (...) {
-    //             promise->set_exception(
-    //                 std::current_exception());
-    //         }
-    //     }, priority);
+        submit([promise,
+                func = std::forward<F>(func)]() mutable {
+            try {
+                promise->set_value(func());
+            } catch (...) {
+                promise->set_exception(
+                    std::current_exception());
+            }
+        }, priority);
 
-    //     return future;
-    // }    
+        return future;
+    }    
 
     void stop();
     void wait_all();

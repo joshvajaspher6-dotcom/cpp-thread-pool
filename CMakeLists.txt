@@ -31,8 +31,9 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(test_task_queue tests/test_task_queue.cpp)
 add_executable(test_thread_pool tests/test_thread_pool.cpp)
+add_executable(test_priority_queue tests/test_priority_queue.cpp)
 
-foreach(t test_task_queue test_thread_pool)
+foreach(t test_task_queue test_thread_pool test_priority_queue)
     target_link_libraries(${t}
         thread_pool_lib
         gtest_main
@@ -43,3 +44,4 @@ endforeach()
 enable_testing()
 add_test(NAME TaskQueueTest  COMMAND test_task_queue)
 add_test(NAME ThreadPoolTest COMMAND test_thread_pool)
+add_test(NAME PriorityPoolTest COMMAND test_priority_queue)
