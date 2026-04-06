@@ -3,6 +3,7 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include "../include/priority.hpp"
 #include "../include/priority_task_queue.hpp"
@@ -44,6 +45,7 @@ void ThreadPool::submit(std::function<void()> task)
     task_queue_.push([this,task = std::move(task)]{
         task();
         active_task_.fetch_sub(1,std::memory_order_relaxed);
+        wait_cv_.notify_all();
     });
 }
 
@@ -56,6 +58,7 @@ void ThreadPool::submit(std::function<void()> task,
         [this, task = std::move(task)]{
             task();
             active_task_.fetch_sub(1,std::memory_order_relaxed);
+            wait_cv_.notify_all();
         },priority);
 }
 
@@ -63,8 +66,26 @@ void ThreadPool::wait_all()
 {
     while (active_task_ > 0 || !task_queue_.empty()|| !priority_queue_.empty())
     {
+        std::unique_lock<std::mutex> lock(wait_mutex_);
+        wait_cv_.wait(lock,[this]
+        {
+            return active_task_==0;
+        });
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+}
+
+void ThreadPool::wait_any()
+{
+    std::unique_lock<std::mutex> lock(wait_mutex_);
+    if (active_task_ == 0)
+        return;
+    
+    int initial_count = active_task_;
+    wait_cv_.wait(lock,[this,initial_count]
+    {
+        return active_task_ < initial_count;
+    });
 }
 
 void ThreadPool::resize(int new_size)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <condition_variable>
 #include <exception>
 #include <iterator>
 #include <vector>
@@ -22,6 +23,8 @@ private:
     std::atomic<bool>                    shutdown_{false};
     std::atomic<int>                     active_task_{0};
     std::atomic<int>                     num_threads_;
+    std::mutex                           wait_mutex_;
+    std::condition_variable              wait_cv_;
 
     void spawn_worker(int id);
 
@@ -52,6 +55,7 @@ public:
                 {
                     promise->set_exception(std::current_exception());
                 }
+               
             });
 
             return future;
@@ -85,6 +89,7 @@ public:
 
     void stop();
     void wait_all();
+    void wait_any();
     void resize(int new_size);
 
     int active_tasks()  const;
