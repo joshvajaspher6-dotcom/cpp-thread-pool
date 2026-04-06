@@ -18,9 +18,16 @@ void Worker::run()
 {
     while(true)
     {   
-        auto task = priority_queue_.pop();
-        if(!task) task =queue_.pop();
-        if(!task) break;
+        while (auto task =priority_queue_.try_pop())
+        {
+            busy_ = true;
+            (*task)();
+            busy_ =false;
+        }
+        auto task =queue_.pop();
+        if(!task)
+            break;
+        
         busy_ = true;
         (*task)();
         busy_ = false;

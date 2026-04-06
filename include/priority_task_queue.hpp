@@ -57,6 +57,16 @@ class PriorityTaskQueue
             return task;
         }
 
+        std::optional<std::function<void()>> try_pop()
+        {
+          std::lock_guard<std::mutex> lock(mtx_);
+          if (queue_.empty())
+              return std::nullopt;
+          auto task = std::move(const_cast<PrioritizedTask&>(queue_.top()).task);
+          queue_.pop();
+          return task;
+        }
+
         void stop()
         {
             shutdown_=true;
