@@ -73,6 +73,11 @@ class PriorityTaskQueue
             cv_.notify_all();
         }
 
+        void wake_all()
+        {
+            cv_.notify_all();
+        }
+
         bool empty() const
         {
             std::lock_guard<std::mutex> lock(mtx_);

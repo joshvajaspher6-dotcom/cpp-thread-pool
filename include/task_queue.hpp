@@ -17,8 +17,9 @@ class TaskQueue
 
     public:
         void push(std::function<void()> task);
-        std::optional<std::function<void()>> pop();
+        std::optional<std::function<void()>> pop(const std::atomic<bool>* stop_flag = nullptr);
         void stop();
+        void wake_all();
         bool empty() const;
         int size() const;
 };

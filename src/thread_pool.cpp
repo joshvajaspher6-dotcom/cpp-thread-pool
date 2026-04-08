@@ -90,9 +90,40 @@ void ThreadPool::wait_any()
 
 void ThreadPool::resize(int new_size)
 {
-    while(num_threads_ < new_size)
+    if (new_size > num_threads_)
     {
-        spawn_worker(num_threads_++);
+        while (num_threads_ < new_size)
+            spawn_worker(num_threads_++);
+    }
+    else if (new_size < num_threads_)
+    {
+        int to_remove =num_threads_ - new_size;
+
+        for (int i=0;i< to_remove;i++)
+        {
+            if(!workers_.empty())
+            {
+                workers_.back()->request_stop();
+                
+            }
+        }
+        for (int i = 0; i < to_remove; i++) 
+        {
+            if (!workers_.empty()) 
+            {
+                auto& worker = workers_.back();
+                worker->request_stop();
+                task_queue_.wake_all();
+                priority_queue_.wake_all();
+                worker->join();  
+                workers_.pop_back();
+            }
+  }
+
+        num_threads_ = new_size;
+
+       
+
     }
 }
 

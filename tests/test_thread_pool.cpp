@@ -65,3 +65,112 @@ TEST(ThreadPoolTest, WaitAllWith1000Tasks) {
       EXPECT_GT(waiters_awake, 0);  // All waiters woke up
   }
 
+TEST(ThreadPoolTest, ResizeGrow) {
+      ThreadPool pool(2);
+      EXPECT_EQ(pool.thread_count(), 2);
+
+    
+      pool.resize(6);
+      EXPECT_EQ(pool.thread_count(), 6);
+
+      
+      std::atomic<int> counter{0};
+      for (int i = 0; i < 100; i++) {
+          pool.submit([&counter] { counter++; });
+      }
+
+      pool.wait_all();
+      EXPECT_EQ(counter, 100);
+  }
+
+  TEST(ThreadPoolTest, ResizeShrinkIdle) {
+      ThreadPool pool(8);
+      EXPECT_EQ(pool.thread_count(), 8);
+
+     
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    
+      pool.resize(2);
+      EXPECT_EQ(pool.thread_count(), 2);
+
+    
+      std::atomic<int> counter{0};
+      for (int i = 0; i < 50; i++) {
+          pool.submit([&counter] { counter++; });
+      }
+
+      pool.wait_all();
+      EXPECT_EQ(counter, 50);
+  }
+
+  TEST(ThreadPoolTest, ResizeShrinkDuringExecution) {
+      ThreadPool pool(8);
+      EXPECT_EQ(pool.thread_count(), 8);
+
+      std::atomic<int> counter{0};
+      std::atomic<bool> started{false};
+
+      
+      for (int i = 0; i < 500; i++) {
+          pool.submit([&counter, &started] {
+              started = true;
+              std::this_thread::sleep_for(std::chrono::milliseconds(10));
+              counter++;
+          });
+      }
+
+     
+      while (!started.load()) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
+
+   
+      pool.resize(2);
+      EXPECT_EQ(pool.thread_count(), 2);
+
+      
+      pool.wait_all();
+      EXPECT_EQ(counter, 500);
+      EXPECT_EQ(pool.active_tasks(), 0);
+  }
+
+  TEST(ThreadPoolTest, ResizeMultipleTimes) {
+      ThreadPool pool(4);
+      EXPECT_EQ(pool.thread_count(), 4);
+
+      
+      pool.resize(8);
+      EXPECT_EQ(pool.thread_count(), 8);
+
+      pool.resize(2);
+      EXPECT_EQ(pool.thread_count(), 2);
+
+      pool.resize(6);
+      EXPECT_EQ(pool.thread_count(), 6);
+
+      pool.resize(6);  // Same size
+      EXPECT_EQ(pool.thread_count(), 6);
+
+      // Verify everything still works
+      std::atomic<int> counter{0};
+      for (int i = 0; i < 200; i++) {
+          pool.submit([&counter] { counter++; });
+      }
+
+      pool.wait_all();
+      EXPECT_EQ(counter, 200);
+  }
+
+  TEST(ThreadPoolTest, ResizeShrinkToZero) {
+      ThreadPool pool(4);
+      EXPECT_EQ(pool.thread_count(), 4);
+
+     
+      pool.resize(0);
+      EXPECT_EQ(pool.thread_count(), 0);
+      EXPECT_EQ(pool.active_tasks(), 0);
+      EXPECT_EQ(pool.pending_tasks(), 0);
+
+      
+  }  

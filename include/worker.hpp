@@ -12,6 +12,7 @@ class Worker
         TaskQueue& queue_;
         PriorityTaskQueue& priority_queue_;
         std::atomic<bool> busy_{false};
+        std::atomic<bool> should_stop_{false};
         int id_;
 
         void run();
@@ -23,6 +24,17 @@ class Worker
         
         bool is_busy() const;
         int id() const;
+        void request_stop()
+        {
+            should_stop_.store(true);
+        }
+
+        void join() 
+        {
+            if (thread_.joinable()) {
+                thread_.join();
+        }
+  }
 
         Worker(const Worker&) = delete;
         Worker& operator=(const Worker&) = delete;

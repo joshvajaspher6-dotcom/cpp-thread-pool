@@ -11,18 +11,19 @@ void TaskQueue::push(std::function<void()> task)
     }
     cv_.notify_one();
 }
-std::optional<std::function<void()>> TaskQueue::pop()
+std::optional<std::function<void()>> TaskQueue::pop(const std::atomic<bool>* stop_flag)
 {
     std::unique_lock<std::mutex> lock(mtx_);
-    cv_.wait(lock,[this]{
-        return !queue_.empty() || shutdown_;
+    cv_.wait(lock,[this, stop_flag]{
+        return !queue_.empty() || shutdown_ || (stop_flag && stop_flag->load());
     });
-    if(queue_.empty())
+    if ((stop_flag && stop_flag->load()) || queue_.empty()) {
         return std::nullopt;
+    }
 
     auto task = std::move(queue_.front());
     queue_.pop();
-    
+
     return task;
 }
 
@@ -32,6 +33,11 @@ void TaskQueue::stop()
         std::lock_guard<std::mutex>lock(mtx_);
         shutdown_ =true;
     }
+    cv_.notify_all();
+}
+
+void TaskQueue::wake_all()
+{
     cv_.notify_all();
 }
 
