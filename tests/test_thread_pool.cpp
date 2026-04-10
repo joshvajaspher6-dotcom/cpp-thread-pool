@@ -7,7 +7,7 @@
 
 using namespace std::chrono_literals;
 
-// ✅ ADD THIS LINE: Allows you to use 'ThreadPool' instead of 'cortex::ThreadPool'
+
 using ThreadPool = cortex::ThreadPool;
 
 TEST(ThreadPoolTest, WaitAllWith1000Tasks) {
