@@ -1,38 +1,40 @@
+// tests/test_task_queue.cpp
 #include "../include/task_queue.hpp"
 #include <gtest/gtest.h>
-#include <vector>
+#include <atomic>
+#include <chrono>
 #include <thread>
+#include <vector>
+
+using namespace std::chrono_literals;
 
 
-TEST(TaskQueue,StartsEmpty)
-{
+using TaskQueue = cortex::TaskQueue;
+
+TEST(TaskQueue, StartsEmpty) {
     TaskQueue q;
     EXPECT_TRUE(q.empty());
-    EXPECT_EQ(q.size(),0);
+    EXPECT_EQ(q.size(), 0);
 }
 
-TEST(TaskQueue,SizeAfterPush)
-{
+TEST(TaskQueue, SizeAfterPush) {
     TaskQueue q;
     q.push([]{});
     q.push([]{});
     q.push([]{});
-    EXPECT_EQ(q.size(),3);
+    EXPECT_EQ(q.size(), 3);
     EXPECT_FALSE(q.empty());
-
 }
-TEST(TaskQueue,TaskRuns)
-{
+
+TEST(TaskQueue, TaskRuns) {
     TaskQueue q;
     int result = 0;
-    q.push([&result]
-    {
-        result = 42;
-    });
+    q.push([&result] { result = 42; });
+    
     auto task = q.pop();
     ASSERT_TRUE(task.has_value());
     (*task)();
-    EXPECT_EQ(result,42);
+    EXPECT_EQ(result, 42);
 }
 
 TEST(TaskQueueTest, FIFOOrder) {
@@ -41,6 +43,7 @@ TEST(TaskQueueTest, FIFOOrder) {
     q.push([&order]{ order.push_back(1); });
     q.push([&order]{ order.push_back(2); });
     q.push([&order]{ order.push_back(3); });
+    
     for (int i = 0; i < 3; i++) {
         auto task = q.pop();
         if (task) (*task)();
@@ -70,30 +73,22 @@ TEST(TaskQueueTest, SizeDecreasesAfterPop) {
     q.push([]{ });
     q.push([]{ });
     EXPECT_EQ(q.size(), 3);
-    q.pop();
-    EXPECT_EQ(q.size(), 2);
-    q.pop();
-    EXPECT_EQ(q.size(), 1);
-    q.pop();
-    EXPECT_EQ(q.size(), 0);
+    
+    q.pop(); EXPECT_EQ(q.size(), 2);
+    q.pop(); EXPECT_EQ(q.size(), 1);
+    q.pop(); EXPECT_EQ(q.size(), 0);
 }
 
-TEST(TaskQueue,ConcurrentPushes)
-{
+TEST(TaskQueue, ConcurrentPushes) {
     TaskQueue q;
     std::vector<std::thread> threads;
-    for (int i=0;i<10;i++)
-    {
-        threads.push_back(std::thread([&q]
-        {
-            q.push([]{});
-        }));
+    for (int i = 0; i < 10; i++) {
+        threads.emplace_back([&q] { q.push([]{}); });
     }
-    for(auto& t: threads)
-    {
+    for (auto& t : threads) {
         t.join();
     }
-    EXPECT_EQ(q.size(),10);
+    EXPECT_EQ(q.size(), 10);
 }
 
 TEST(TaskQueueTest, ConcurrentPushPop) {
@@ -103,18 +98,16 @@ TEST(TaskQueueTest, ConcurrentPushPop) {
     std::vector<std::thread> consumers;
 
     for (int i = 0; i < 5; i++)
-        producers.push_back(std::thread([&q]{
-            q.push([]{ });
-        }));
+        producers.emplace_back([&q]{ q.push([]{}); });
 
     for (int i = 0; i < 5; i++)
-        consumers.push_back(std::thread([&q, &count]{
+        consumers.emplace_back([&q, &count]{
             auto task = q.pop();
             if (task) {
                 (*task)();
                 count++;
             }
-        }));
+        });
 
     for (auto& t : producers) t.join();
     for (auto& t : consumers) t.join();
@@ -136,9 +129,7 @@ TEST(TaskQueueTest, WorkerProcessesTasks) {
     for (int i = 0; i < 10; i++)
         q.push([&count]{ count++; });
 
-    std::this_thread::sleep_for(
-        std::chrono::milliseconds(300));
-
+    std::this_thread::sleep_for(300ms);
     q.stop();
     worker.join();
 
@@ -151,20 +142,18 @@ TEST(TaskQueueTest, MultipleWorkersProcessTasks) {
     std::vector<std::thread> workers;
 
     for (int i = 0; i < 4; i++)
-        workers.push_back(std::thread([&q]{
+        workers.emplace_back([&q]{
             while (true) {
                 auto task = q.pop();
                 if (!task) break;
                 (*task)();
             }
-        }));
+        });
 
     for (int i = 0; i < 20; i++)
         q.push([&count]{ count++; });
 
-    std::this_thread::sleep_for(
-        std::chrono::milliseconds(300));
-
+    std::this_thread::sleep_for(300ms);
     q.stop();
     for (auto& w : workers) w.join();
 

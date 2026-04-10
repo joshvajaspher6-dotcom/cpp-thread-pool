@@ -2,7 +2,7 @@
 #include <mutex>
 #include <optional>
 
-void TaskQueue::push(std::function<void()> task)
+void cortex::TaskQueue::push(std::function<void()> task)
 {
     {
         std::lock_guard<std::mutex> lock(mtx_);
@@ -11,7 +11,7 @@ void TaskQueue::push(std::function<void()> task)
     }
     cv_.notify_one();
 }
-std::optional<std::function<void()>> TaskQueue::pop(const std::atomic<bool>* stop_flag)
+std::optional<std::function<void()>> cortex::TaskQueue::pop(const std::atomic<bool>* stop_flag)
 {
     std::unique_lock<std::mutex> lock(mtx_);
     cv_.wait(lock,[this, stop_flag]{
@@ -27,7 +27,7 @@ std::optional<std::function<void()>> TaskQueue::pop(const std::atomic<bool>* sto
     return task;
 }
 
-void TaskQueue::stop()
+void cortex::TaskQueue::stop()
 {
     {
         std::lock_guard<std::mutex>lock(mtx_);
@@ -36,18 +36,18 @@ void TaskQueue::stop()
     cv_.notify_all();
 }
 
-void TaskQueue::wake_all()
+void cortex::TaskQueue::wake_all()
 {
     cv_.notify_all();
 }
 
-bool TaskQueue::empty() const
+bool cortex::TaskQueue::empty() const
 {
      std::lock_guard<std::mutex>lock(mtx_);
      return queue_.empty();
 }
 
-int TaskQueue::size() const
+int cortex::TaskQueue::size() const
 {
      std::lock_guard<std::mutex>lock(mtx_);
      return queue_.size();

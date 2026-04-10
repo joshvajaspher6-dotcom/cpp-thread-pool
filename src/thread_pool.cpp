@@ -2,142 +2,148 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <type_traits>
 #include "../include/priority.hpp"
 #include "../include/priority_task_queue.hpp"
 
-
-ThreadPool::ThreadPool(int num_threads):num_threads_(num_threads)
+cortex::ThreadPool::ThreadPool(int num_threads) : num_threads_(num_threads)
 {
-    for (int i=0;i<num_threads;i++)
+    for (int i = 0; i < num_threads; i++)
     {
         spawn_worker(i);
     }
 }
 
-ThreadPool::~ThreadPool()
+cortex::ThreadPool::~ThreadPool()
 {
     stop();
+    for (auto& w : workers_) {
+        w->join();
+    }
 }
 
-void ThreadPool::spawn_worker(int id)
+void cortex::ThreadPool::spawn_worker(int id)
 {
     workers_.push_back(
-        std::make_unique<Worker>(id,task_queue_,priority_queue_)
+        std::make_unique<Worker>(id, task_queue_, priority_queue_)
     );
-
 }
 
-
-void ThreadPool::stop()
+void cortex::ThreadPool::stop()
 {
-    shutdown_ = true;
+    bool expected = false;
+    if (!shutdown_.compare_exchange_strong(expected, true)) return;
+
     task_queue_.stop();
     priority_queue_.stop();
+    
+    task_queue_.wake_all();
+    priority_queue_.wake_all();
+
+    for (auto& w : workers_) {
+        w->join();
+    }
 }
 
-void ThreadPool::submit(std::function<void()> task)
+void cortex::ThreadPool::submit(std::function<void()> task)
 {
-    if(shutdown_) return;
-    active_task_.fetch_add(1,std::memory_order_relaxed);
-    task_queue_.push([this,task = std::move(task)]{
+    if (shutdown_) return;
+    active_task_.fetch_add(1, std::memory_order_relaxed);
+    task_queue_.push([this, task = std::move(task)] {
         task();
-        active_task_.fetch_sub(1,std::memory_order_relaxed);
+        active_task_.fetch_sub(1, std::memory_order_relaxed);
         wait_cv_.notify_all();
     });
 }
 
-void ThreadPool::submit(std::function<void()> task,
-                        Priority priority)
+void cortex::ThreadPool::submit(std::function<void()> task,
+                                Priority priority)
 {
     if (shutdown_) return;
-    active_task_.fetch_add(1,std::memory_order_relaxed);
+    active_task_.fetch_add(1, std::memory_order_relaxed);
     priority_queue_.push(
-        [this, task = std::move(task)]{
+        [this, task = std::move(task)] {
             task();
-            active_task_.fetch_sub(1,std::memory_order_relaxed);
+            active_task_.fetch_sub(1, std::memory_order_relaxed);
             wait_cv_.notify_all();
-        },priority);
+        }, priority);
 }
 
-void ThreadPool::wait_all()
+void cortex::ThreadPool::wait_all()
 {
-    while (active_task_ > 0 || !task_queue_.empty()|| !priority_queue_.empty())
-    {
-        std::unique_lock<std::mutex> lock(wait_mutex_);
-        wait_cv_.wait(lock,[this]
-        {
-            return active_task_==0;
-        });
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
+    std::unique_lock<std::mutex> lock(wait_mutex_);
+    wait_cv_.wait(lock, [this] {
+        return active_task_.load(std::memory_order_acquire) == 0 &&
+               task_queue_.empty() && 
+               priority_queue_.empty();
+    });
 }
 
-void ThreadPool::wait_any()
+void cortex::ThreadPool::wait_any()
 {
     std::unique_lock<std::mutex> lock(wait_mutex_);
     if (active_task_ == 0)
         return;
     
     int initial_count = active_task_;
-    wait_cv_.wait(lock,[this,initial_count]
-    {
-        return active_task_ < initial_count;
+    wait_cv_.wait(lock, [this, initial_count] {
+        return active_task_.load(std::memory_order_acquire) < initial_count;
     });
 }
 
-void ThreadPool::resize(int new_size)
+void cortex::ThreadPool::resize(int new_size)
 {
     if (new_size > num_threads_)
     {
         while (num_threads_ < new_size)
-            spawn_worker(num_threads_++);
+        {
+            spawn_worker(num_threads_);
+            num_threads_++;
+        }
     }
     else if (new_size < num_threads_)
     {
-        int to_remove =num_threads_ - new_size;
-
-        for (int i=0;i< to_remove;i++)
+        int to_remove = num_threads_ - new_size;
+        
+        std::vector<std::unique_ptr<Worker>> workers_to_join;
+        for (int i = 0; i < to_remove; i++)
         {
-            if(!workers_.empty())
+            if (!workers_.empty())
             {
-                workers_.back()->request_stop();
-                
+                auto w = std::move(workers_.back());
+                workers_.pop_back();
+                w->request_stop();
+                workers_to_join.push_back(std::move(w));
             }
         }
-        for (int i = 0; i < to_remove; i++) 
+        
+        task_queue_.wake_all();
+        priority_queue_.wake_all();
+
+        for (auto& w : workers_to_join)
         {
-            if (!workers_.empty()) 
-            {
-                auto& worker = workers_.back();
-                worker->request_stop();
-                task_queue_.wake_all();
-                priority_queue_.wake_all();
-                worker->join();  
-                workers_.pop_back();
-            }
-  }
+            w->join();
+        }
 
         num_threads_ = new_size;
-
-       
-
     }
 }
 
-int ThreadPool::active_tasks() const
+int cortex::ThreadPool::active_tasks() const
 {
     return active_task_;
 }
 
-int ThreadPool::pending_tasks() const
+int cortex::ThreadPool::pending_tasks() const
 {
-    return task_queue_.size()+ priority_queue_.size();
+    return task_queue_.size() + priority_queue_.size();
 }
 
-int ThreadPool::thread_count() const
+int cortex::ThreadPool::thread_count() const
 {
     return num_threads_;
 }

@@ -2,12 +2,12 @@
 
 
 
-Worker::Worker (int id,TaskQueue& queue_,PriorityTaskQueue& priority_queue_): queue_(queue_),priority_queue_(priority_queue_),id_(id)
+cortex::Worker::Worker (int id,TaskQueue& queue_,PriorityTaskQueue& priority_queue_): queue_(queue_),priority_queue_(priority_queue_),id_(id)
 {
     thread_ =std::thread(&Worker::run,this);
 }
 
-Worker::~Worker()
+cortex::Worker::~Worker()
 {
     if(thread_.joinable())
     {
@@ -17,7 +17,7 @@ Worker::~Worker()
 
 
 
-void Worker::run()
+void cortex::Worker::run()
 {
     while(true)
     {   
@@ -48,12 +48,12 @@ void Worker::run()
     }
 }
 
-bool Worker::is_busy() const
+bool cortex::Worker::is_busy() const
 {
     return busy_;
 }
 
-int Worker::id() const
+int cortex::Worker::id() const
 {
     return id_;
 }

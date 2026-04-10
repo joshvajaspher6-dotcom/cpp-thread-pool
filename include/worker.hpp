@@ -5,37 +5,41 @@
 #include "task_queue.hpp"
 #include "priority_task_queue.hpp"
 
-class Worker
+
+namespace cortex
 {
-    private:
-        std::thread thread_;
-        TaskQueue& queue_;
-        PriorityTaskQueue& priority_queue_;
-        std::atomic<bool> busy_{false};
-        std::atomic<bool> should_stop_{false};
-        int id_;
+    class Worker
+    {
+        private:
+            std::thread thread_;
+            TaskQueue& queue_;
+            PriorityTaskQueue& priority_queue_;
+            std::atomic<bool> busy_{false};
+            std::atomic<bool> should_stop_{false};
+            int id_;
 
-        void run();
+            void run();
 
-    public:
-        explicit Worker(int id,TaskQueue& queue_,
-                PriorityTaskQueue& priority_queue_);
-        ~Worker();
-        
-        bool is_busy() const;
-        int id() const;
-        void request_stop()
-        {
-            should_stop_.store(true);
-        }
+        public:
+            explicit Worker(int id,TaskQueue& queue_,
+                    PriorityTaskQueue& priority_queue_);
+            ~Worker();
+            
+            bool is_busy() const;
+            int id() const;
+            void request_stop()
+            {
+                should_stop_.store(true);
+            }
 
-        void join() 
-        {
-            if (thread_.joinable()) {
-                thread_.join();
-        }
-  }
+            void join() 
+            {
+                if (thread_.joinable()) {
+                    thread_.join();
+            }
+    }
 
-        Worker(const Worker&) = delete;
-        Worker& operator=(const Worker&) = delete;
-};
+            Worker(const Worker&) = delete;
+            Worker& operator=(const Worker&) = delete;
+    };
+}

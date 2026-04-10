@@ -7,19 +7,23 @@
 #include <condition_variable>
 #include <atomic>
 
-class TaskQueue
+namespace cortex
 {
-    private:
-        std::queue<std::function<void()>> queue_;
-        mutable std::mutex mtx_;
-        std::condition_variable cv_;
-        std::atomic<bool> shutdown_{false};
 
-    public:
-        void push(std::function<void()> task);
-        std::optional<std::function<void()>> pop(const std::atomic<bool>* stop_flag = nullptr);
-        void stop();
-        void wake_all();
-        bool empty() const;
-        int size() const;
-};
+    class TaskQueue
+    {
+        private:
+            std::queue<std::function<void()>> queue_;
+            mutable std::mutex mtx_;
+            std::condition_variable cv_;
+            std::atomic<bool> shutdown_{false};
+
+        public:
+            void push(std::function<void()> task);
+            std::optional<std::function<void()>> pop(const std::atomic<bool>* stop_flag = nullptr);
+            void stop();
+            void wake_all();
+            bool empty() const;
+            int size() const;
+    };
+}
