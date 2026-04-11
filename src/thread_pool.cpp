@@ -133,6 +133,43 @@ void cortex::ThreadPool::resize(int new_size)
     }
 }
 
+void cortex::ThreadPool::submit(std::function<void()> task,
+            std::shared_ptr<CancellationToken> token)
+{
+    if(shutdown_)
+        return;
+
+    if(!token)
+    {
+        submit(std::move(task));
+    }
+
+    active_task_.fetch_add(1,std::memory_order_relaxed);
+
+    task_queue_.push([this,task=std::move(task),token=std::move(token)]
+    {
+        if(token->is_cancelled())
+        {
+            active_task_.fetch_sub(1,std::memory_order_relaxed);
+            wait_cv_.notify_all();
+            return;
+        }
+    
+
+    try{
+        task();
+    }
+    catch (...)
+    {}
+
+    active_task_.fetch_sub(1,std::memory_order_relaxed);
+    wait_cv_.notify_all();
+
+    });
+}            
+
+
+
 int cortex::ThreadPool::active_tasks() const
 {
     return active_task_;

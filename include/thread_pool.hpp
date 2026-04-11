@@ -15,6 +15,7 @@
 #include "task_queue.hpp"
 #include "worker.hpp"
 #include "timed_future.hpp"
+#include "cancellation_token.hpp"
 
 namespace cortex
 {
@@ -102,7 +103,8 @@ namespace cortex
             return TimedFuture<ReturnType>(std::move(future));
         }
 
-
+        void submit(std::function<void()> task, 
+                std::shared_ptr<CancellationToken> token);
         void stop();
         void wait_all();
         void wait_any();
