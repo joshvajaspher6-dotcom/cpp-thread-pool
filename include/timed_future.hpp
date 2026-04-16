@@ -1,5 +1,7 @@
 #pragma once
 
+#include <thread>
+#include <type_traits>
 #include <future>
 #include <chrono>
 #include <optional>
@@ -54,6 +56,58 @@ namespace cortex
                 return std::nullopt;
             }  
             
+                  
+             template<typename F>
+    auto then(F&& func) 
+        -> TimedFuture<std::invoke_result_t<F, T>> 
+    {
+        using NextType = std::invoke_result_t<F, T>;
+        auto promise = std::make_shared<std::promise<NextType>>();
+        std::future<NextType> next_future = promise->get_future();
+
+        
+        auto current_future = std::move(future_);
+
+        
+        std::thread([curr = std::move(current_future), 
+                     f = std::forward<F>(func), 
+                     prom = std::move(promise)]() mutable 
+                     {
+            try 
+            {
+                if constexpr (std::is_void_v<T>) {
+                    curr.get(); // Wait for void task
+                    if constexpr (std::is_void_v<NextType>) 
+                    {
+                        f(); prom->set_value();
+                    } 
+                    else 
+                    {
+                        prom->set_value(f());
+                    }
+                } 
+                else 
+                {
+                    auto val = curr.get(); 
+                    if constexpr (std::is_void_v<NextType>) 
+                    {
+                        f(std::move(val)); prom->set_value();
+                    } 
+                    else 
+                    {
+                        prom->set_value(f(std::move(val)));
+                    }
+                }
+            } 
+            catch (...) 
+            {
+                prom->set_exception(std::current_exception());
+            }
+        }).detach();
+
+        return TimedFuture<NextType>(std::move(next_future));
+    }
+
             bool is_ready() const
             {
                 if(!future_.valid())

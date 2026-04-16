@@ -6,31 +6,27 @@
 
 int main() {
     cortex::ThreadPool pool(4);
-    
-   
-    auto token = std::make_shared<cortex::CancellationToken>();
 
-    
-    std::cout << "Submitting 5 tasks...\n";
-    for (int i = 0; i < 5; ++i) {
-        pool.submit([i, token]() {
-            std::cout << "Task " << i << " running...\n";
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            std::cout << "Task " << i << " finished.\n";
-        }, token);
-    }
+    std::cout << "Starting Chain...\n";
 
-   
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    auto final_future = pool.submit_with_timeout([]() {
+        std::cout << "Step 1: Calculating...\n";
+        return 15;
+    })
+    .then([](int val) {
+        std::cout << "Step 2: Received " << val << ". Doubling it...\n";
+        return val * 2;
+    })
+    .then([](int val) {
+        std::cout << "Step 3: Received " << val << ". Converting to string...\n";
+        return std::to_string(val) + " OK";
+    })
+    .then([](std::string msg) {
+        std::cout << "Step 4: Final Result: " << msg << "\n";
+    });
 
-   
-    std::cout << "CANCELLING...\n";
-    token->cancel();
+    final_future.get();
 
-   
-    pool.wait_all();
-
-    std::cout << "All done. Check console to see which tasks were skipped.\n";
-
+    std::cout << "Chain Complete.\n";
     return 0;
 }
