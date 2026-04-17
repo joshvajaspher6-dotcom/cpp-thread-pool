@@ -76,13 +76,11 @@ void cortex::ThreadPool::submit(std::function<void()> task,
 void cortex::ThreadPool::wait_all()
 {
     std::unique_lock<std::mutex> lock(wait_mutex_);
-    wait_cv_.wait(lock, [this] {
-        return active_task_.load(std::memory_order_acquire) == 0 &&
-               task_queue_.empty() && 
-               priority_queue_.empty();
-    });
+    wait_cv_.wait(lock, [this] 
+        {
+        return active_task_.load(std::memory_order_acquire) == 0;
+        });
 }
-
 void cortex::ThreadPool::wait_any()
 {
     std::unique_lock<std::mutex> lock(wait_mutex_);

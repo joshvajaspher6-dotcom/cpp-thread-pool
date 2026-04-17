@@ -62,4 +62,17 @@ foreach(test_name ${TEST_TARGETS})
     gtest_discover_tests(${test_name})
 endforeach()
 
+FetchContent_Declare(
+    googlebenchmark
+    URL https://github.com/google/benchmark/archive/refs/tags/v1.8.3.zip
+    DOWNLOAD_EXTRACT_TIMESTAMP true
+)
+FetchContent_MakeAvailable(googlebenchmark)
+
+add_executable(bench_thread_pool benchmarks/bench_thread_pool.cpp)
+target_link_libraries(bench_thread_pool PRIVATE 
+    thread_pool_lib 
+    benchmark::benchmark 
+    Threads::Threads
+)
 enable_testing()
