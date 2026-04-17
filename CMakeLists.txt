@@ -47,6 +47,7 @@ set(TEST_TARGETS
     test_thread_pool
     test_priority_queue
     test_timeout
+    test_advanced
 )
 
 foreach(test_name ${TEST_TARGETS})
