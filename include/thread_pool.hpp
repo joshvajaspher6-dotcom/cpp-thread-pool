@@ -16,6 +16,7 @@
 #include "worker.hpp"
 #include "timed_future.hpp"
 #include "cancellation_token.hpp"
+#include "task.hpp"
 
 namespace cortex
 {
@@ -29,6 +30,8 @@ namespace cortex
         std::atomic<int>                     num_threads_;
         std::mutex                           wait_mutex_;
         std::condition_variable              wait_cv_;
+        std::condition_variable notify_cv_;
+        std::mutex notify_mtx_;
 
         void spawn_worker(int id);
 
@@ -39,6 +42,11 @@ namespace cortex
 
         void submit(std::function<void()> task);
         void submit(std::function<void()> task, Priority priority);
+        void submit(std::function<void()> task, std::shared_ptr<CancellationToken> token);
+
+        void submit(cortex::Task task);
+        void submit(cortex::Task task, Priority priority);
+        void submit(cortex::Task task, std::shared_ptr<CancellationToken> token);
 
         
         template<typename F>
@@ -58,7 +66,7 @@ namespace cortex
             return future;
         }
 
-       template<typename F, typename... Args>
+           template<typename F, typename... Args>
         auto submit_with_timeout(F&& f, Args&&... args)
             -> TimedFuture<
                 typename std::invoke_result<
@@ -77,23 +85,25 @@ namespace cortex
 
             std::future<ReturnType> future = task->get_future();
 
+            
             auto wrapped = [this, task]() {
-                struct DecrementGuard {
-                    std::atomic<int>& counter;
-                    std::condition_variable& cv;
-                    ~DecrementGuard() {
-                        counter.fetch_sub(1, std::memory_order_release);
-                        cv.notify_all();  
-                    }
-                } guard{active_task_, wait_cv_};
-
-                (*task)();  
+                try 
+                {
+                    (*task)(); 
+                } catch (...) 
+                {
+                    
+                }
+                
+                active_task_.fetch_sub(1, std::memory_order_release);
+                wait_cv_.notify_all();
             };
 
             active_task_.fetch_add(1, std::memory_order_relaxed);
 
             if (!shutdown_) {
-                task_queue_.push(std::move(wrapped));
+                task_queue_.push(cortex::Task(std::move(wrapped)));
+                notify_cv_.notify_one(); 
             } else {
                 active_task_.fetch_sub(1, std::memory_order_relaxed);
                 wait_cv_.notify_all();
@@ -103,8 +113,7 @@ namespace cortex
             return TimedFuture<ReturnType>(std::move(future));
         }
 
-        void submit(std::function<void()> task, 
-                std::shared_ptr<CancellationToken> token);
+        
         void stop();
         void wait_all();
         void wait_any();

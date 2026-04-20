@@ -1,8 +1,9 @@
 #include "../include/task_queue.hpp"
+#include "../include/task.hpp"
 #include <mutex>
 #include <optional>
 
-void cortex::TaskQueue::push(std::function<void()> task)
+void cortex::TaskQueue::push(cortex::Task task)
 {
     {
         std::lock_guard<std::mutex> lock(mtx_);
@@ -11,7 +12,7 @@ void cortex::TaskQueue::push(std::function<void()> task)
     }
     cv_.notify_one();
 }
-std::optional<std::function<void()>> cortex::TaskQueue::pop(const std::atomic<bool>* stop_flag)
+std::optional<cortex::Task> cortex::TaskQueue::pop(const std::atomic<bool>* stop_flag)
 {
     std::unique_lock<std::mutex> lock(mtx_);
     cv_.wait(lock,[this, stop_flag]{
@@ -27,6 +28,13 @@ std::optional<std::function<void()>> cortex::TaskQueue::pop(const std::atomic<bo
     return task;
 }
 
+std::optional<cortex::Task> cortex::TaskQueue::try_pop() {
+    std::lock_guard<std::mutex> lock(mtx_);
+    if (queue_.empty()) return std::nullopt;
+    auto task = std::move(queue_.front());
+    queue_.pop();
+    return task;
+}
 void cortex::TaskQueue::stop()
 {
     {

@@ -6,6 +6,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
+#include "task.hpp"
 
 namespace cortex
 {
@@ -13,14 +14,16 @@ namespace cortex
     class TaskQueue
     {
         private:
-            std::queue<std::function<void()>> queue_;
+            std::queue<cortex::Task> queue_;
             mutable std::mutex mtx_;
             std::condition_variable cv_;
             std::atomic<bool> shutdown_{false};
+            
 
         public:
-            void push(std::function<void()> task);
-            std::optional<std::function<void()>> pop(const std::atomic<bool>* stop_flag = nullptr);
+            void push(cortex::Task task);
+            std::optional<cortex::Task> pop(const std::atomic<bool>* stop_flag = nullptr);
+            std::optional<cortex::Task> try_pop();
             void stop();
             void wake_all();
             bool empty() const;

@@ -1,6 +1,6 @@
-
 #include <gtest/gtest.h>
 #include <vector>
+#include "../include/task.hpp"
 
 #include "../include/thread_pool.hpp"
 

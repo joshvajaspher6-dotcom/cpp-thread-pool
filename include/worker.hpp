@@ -11,20 +11,24 @@ namespace cortex
     class Worker
     {
         private:
-            std::thread thread_;
+
             TaskQueue& queue_;
             PriorityTaskQueue& priority_queue_;
-            std::atomic<bool> busy_{false};
+            std::condition_variable& notify_cv_;
+            std::mutex& notify_mtx_;
+            std::thread thread_;
             std::atomic<bool> should_stop_{false};
+            std::atomic<bool> busy_{false};
             int id_;
 
-            void run();
-
-        public:
-            explicit Worker(int id,TaskQueue& queue_,
-                    PriorityTaskQueue& priority_queue_);
-            ~Worker();
             
+        public:
+
+            explicit Worker(int id, TaskQueue& queue, PriorityTaskQueue& priority_queue,
+                        std::condition_variable& notify_cv, std::mutex& notify_mtx);
+            ~Worker();
+                
+            void run();
             bool is_busy() const;
             int id() const;
             void request_stop()

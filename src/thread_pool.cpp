@@ -1,12 +1,11 @@
 #include "../include/thread_pool.hpp"
+#include "../include/task.hpp"
 #include <atomic>
 #include <chrono>
 #include <functional>
 #include <future>
 #include <memory>
 #include <mutex>
-#include <thread>
-#include <type_traits>
 #include "../include/priority.hpp"
 #include "../include/priority_task_queue.hpp"
 
@@ -29,7 +28,7 @@ cortex::ThreadPool::~ThreadPool()
 void cortex::ThreadPool::spawn_worker(int id)
 {
     workers_.push_back(
-        std::make_unique<Worker>(id, task_queue_, priority_queue_)
+        std::make_unique<Worker>(id, task_queue_, priority_queue_,notify_cv_,notify_mtx_)
     );
 }
 
@@ -40,37 +39,113 @@ void cortex::ThreadPool::stop()
 
     task_queue_.stop();
     priority_queue_.stop();
-    
     task_queue_.wake_all();
     priority_queue_.wake_all();
+
+    
+    {
+        std::lock_guard<std::mutex> lock(notify_mtx_);
+        notify_cv_.notify_all();
+    }
+
+    
+    for (auto& w : workers_) {
+        w->request_stop();
+    }
+
+    
+    {
+        std::lock_guard<std::mutex> lock(notify_mtx_);
+        notify_cv_.notify_all();
+    }
 
     for (auto& w : workers_) {
         w->join();
     }
 }
 
-void cortex::ThreadPool::submit(std::function<void()> task)
+void cortex::ThreadPool::submit(cortex::Task task)
 {
     if (shutdown_) return;
     active_task_.fetch_add(1, std::memory_order_relaxed);
-    task_queue_.push([this, task = std::move(task)] {
-        task();
-        active_task_.fetch_sub(1, std::memory_order_relaxed);
-        wait_cv_.notify_all();
-    });
+    task_queue_.push(cortex::Task([t = std::move(task), pool = this]() mutable {
+        try 
+        {
+            t();
+        } catch (...)
+        {
+            
+            throw;
+        }
+        pool->active_task_.fetch_sub(1, std::memory_order_relaxed);
+        pool->wait_cv_.notify_all();
+    }));
+    notify_cv_.notify_one();
 }
 
-void cortex::ThreadPool::submit(std::function<void()> task,
-                                Priority priority)
+
+void cortex::ThreadPool::submit(cortex::Task task, Priority priority)
 {
     if (shutdown_) return;
     active_task_.fetch_add(1, std::memory_order_relaxed);
-    priority_queue_.push(
-        [this, task = std::move(task)] {
-            task();
-            active_task_.fetch_sub(1, std::memory_order_relaxed);
-            wait_cv_.notify_all();
-        }, priority);
+     priority_queue_.push(cortex::Task([t = std::move(task), pool = this]() mutable {
+        try 
+        {
+            t();
+        } 
+        catch (...) 
+        {
+            throw; 
+        }
+        pool->active_task_.fetch_sub(1, std::memory_order_relaxed);
+        pool->wait_cv_.notify_all();
+    }), priority);
+    notify_cv_.notify_one();
+}
+
+
+void cortex::ThreadPool::submit(cortex::Task task, std::shared_ptr<CancellationToken> token)
+{
+    if (shutdown_) return;
+    if (!token) {
+        submit(std::move(task));
+        return;
+    }
+
+    active_task_.fetch_add(1, std::memory_order_relaxed);
+
+   
+    task_queue_.push(cortex::Task([inner = std::move(task), 
+                                   tok = std::move(token), 
+                                   pool = this]() mutable {
+        if (tok->is_cancelled()) {
+            pool->active_task_.fetch_sub(1, std::memory_order_relaxed);
+            pool->wait_cv_.notify_all();
+            return;
+        }
+        try { inner(); } catch (...) {}
+        pool->active_task_.fetch_sub(1, std::memory_order_relaxed);
+        pool->wait_cv_.notify_all();
+    })); 
+
+    
+    notify_cv_.notify_one();
+}
+
+
+void cortex::ThreadPool::submit(std::function<void()> task)
+{
+    submit(cortex::Task(std::move(task)));
+}
+
+void cortex::ThreadPool::submit(std::function<void()> task, Priority priority)
+{
+    submit(cortex::Task(std::move(task)), priority);
+}
+
+void cortex::ThreadPool::submit(std::function<void()> task, std::shared_ptr<CancellationToken> token)
+{
+    submit(cortex::Task(std::move(task)), std::move(token));
 }
 
 void cortex::ThreadPool::wait_all()
@@ -81,6 +156,7 @@ void cortex::ThreadPool::wait_all()
         return active_task_.load(std::memory_order_acquire) == 0;
         });
 }
+
 void cortex::ThreadPool::wait_any()
 {
     std::unique_lock<std::mutex> lock(wait_mutex_);
@@ -108,20 +184,25 @@ void cortex::ThreadPool::resize(int new_size)
         int to_remove = num_threads_ - new_size;
         
         std::vector<std::unique_ptr<Worker>> workers_to_join;
-        for (int i = 0; i < to_remove; i++)
+         for (int i = 0; i < to_remove && !workers_.empty(); i++)
         {
-            if (!workers_.empty())
-            {
-                auto w = std::move(workers_.back());
-                workers_.pop_back();
-                w->request_stop();
-                workers_to_join.push_back(std::move(w));
-            }
+            auto w = std::move(workers_.back());
+            workers_.pop_back();
+            w->request_stop();
+            workers_to_join.push_back(std::move(w));
         }
         
+    
+        {
+            std::lock_guard<std::mutex> lock(notify_mtx_);
+            notify_cv_.notify_all();
+        }
+        
+      
         task_queue_.wake_all();
         priority_queue_.wake_all();
 
+       
         for (auto& w : workers_to_join)
         {
             w->join();
@@ -130,42 +211,6 @@ void cortex::ThreadPool::resize(int new_size)
         num_threads_ = new_size;
     }
 }
-
-void cortex::ThreadPool::submit(std::function<void()> task,
-            std::shared_ptr<CancellationToken> token)
-{
-    if(shutdown_)
-        return;
-
-    if(!token)
-    {
-        submit(std::move(task));
-    }
-
-    active_task_.fetch_add(1,std::memory_order_relaxed);
-
-    task_queue_.push([this,task=std::move(task),token=std::move(token)]
-    {
-        if(token->is_cancelled())
-        {
-            active_task_.fetch_sub(1,std::memory_order_relaxed);
-            wait_cv_.notify_all();
-            return;
-        }
-    
-
-    try{
-        task();
-    }
-    catch (...)
-    {}
-
-    active_task_.fetch_sub(1,std::memory_order_relaxed);
-    wait_cv_.notify_all();
-
-    });
-}            
-
 
 
 int cortex::ThreadPool::active_tasks() const

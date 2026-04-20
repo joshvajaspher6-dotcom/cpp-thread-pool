@@ -2,6 +2,7 @@
 
 #include <queue>
 #include "priority.hpp" 
+#include "task.hpp"
 #include <functional>
 #include <mutex>
 #include <atomic>
@@ -14,7 +15,7 @@ namespace cortex
 
 struct PrioritizedTask
 {
-    std::function<void()> task;
+    cortex::Task task;
     Priority priority;
 
     bool operator<(const PrioritizedTask& other) const
@@ -34,7 +35,7 @@ struct PrioritizedTask
 
         public:
             
-            void push(std::function<void()> task, Priority priority = Priority::MEDIUM)
+            void push(cortex::Task task, Priority priority = Priority::MEDIUM)
             {
                 {
                     std::lock_guard<std::mutex>lock(mtx_);
@@ -45,7 +46,7 @@ struct PrioritizedTask
             }
 
 
-            std::optional<std::function<void()>> pop()
+            std::optional<cortex::Task> pop()
             {
                 std::unique_lock<std::mutex> lock(mtx_);
                 cv_.wait(lock,[this]{
@@ -54,14 +55,13 @@ struct PrioritizedTask
 
                 if(queue_.empty()) return std::nullopt;
 
-                auto task = std::move(
-                            queue_.top().task
-                );
+                PrioritizedTask top_item = std::move(const_cast<PrioritizedTask&>(queue_.top()));
                 queue_.pop();
-                return task;
+            
+                return std::move(top_item.task);
             }
 
-            std::optional<std::function<void()>> try_pop()
+            std::optional<cortex::Task> try_pop()
             {
             std::lock_guard<std::mutex> lock(mtx_);
             if (queue_.empty())

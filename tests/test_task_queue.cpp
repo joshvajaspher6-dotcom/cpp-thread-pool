@@ -1,11 +1,9 @@
-// tests/test_task_queue.cpp
 #include "../include/task_queue.hpp"
 #include <gtest/gtest.h>
 #include <atomic>
-#include <chrono>
 #include <thread>
 #include <vector>
-
+#include "../include/task.hpp"
 using namespace std::chrono_literals;
 
 
@@ -19,9 +17,9 @@ TEST(TaskQueue, StartsEmpty) {
 
 TEST(TaskQueue, SizeAfterPush) {
     TaskQueue q;
-    q.push([]{});
-    q.push([]{});
-    q.push([]{});
+    q.push(cortex::Task([]{}));
+    q.push(cortex::Task([]{}));
+    q.push(cortex::Task([]{}));
     EXPECT_EQ(q.size(), 3);
     EXPECT_FALSE(q.empty());
 }
@@ -29,7 +27,7 @@ TEST(TaskQueue, SizeAfterPush) {
 TEST(TaskQueue, TaskRuns) {
     TaskQueue q;
     int result = 0;
-    q.push([&result] { result = 42; });
+    q.push(cortex::Task([&result] { result = 42; }));
     
     auto task = q.pop();
     ASSERT_TRUE(task.has_value());
@@ -40,9 +38,9 @@ TEST(TaskQueue, TaskRuns) {
 TEST(TaskQueueTest, FIFOOrder) {
     TaskQueue q;
     std::vector<int> order;
-    q.push([&order]{ order.push_back(1); });
-    q.push([&order]{ order.push_back(2); });
-    q.push([&order]{ order.push_back(3); });
+    q.push(cortex::Task([&order]{ order.push_back(1); }));
+    q.push(cortex::Task([&order]{ order.push_back(2); }));
+    q.push(cortex::Task([&order]{ order.push_back(3); }));
     
     for (int i = 0; i < 3; i++) {
         auto task = q.pop();
@@ -63,15 +61,15 @@ TEST(TaskQueueTest, StopReturnsNullopt) {
 TEST(TaskQueueTest, PushAfterStop) {
     TaskQueue q;
     q.stop();
-    q.push([]{ });
+    q.push(cortex::Task([]{ }));
     EXPECT_EQ(q.size(), 0);
 }
 
 TEST(TaskQueueTest, SizeDecreasesAfterPop) {
     TaskQueue q;
-    q.push([]{ });
-    q.push([]{ });
-    q.push([]{ });
+    q.push(cortex::Task([]{ }));
+    q.push(cortex::Task([]{ }));
+    q.push(cortex::Task([]{ }));
     EXPECT_EQ(q.size(), 3);
     
     q.pop(); EXPECT_EQ(q.size(), 2);
@@ -83,7 +81,7 @@ TEST(TaskQueue, ConcurrentPushes) {
     TaskQueue q;
     std::vector<std::thread> threads;
     for (int i = 0; i < 10; i++) {
-        threads.emplace_back([&q] { q.push([]{}); });
+        threads.emplace_back(cortex::Task([&q] { q.push(cortex::Task([]{})); }));
     }
     for (auto& t : threads) {
         t.join();
@@ -98,7 +96,7 @@ TEST(TaskQueueTest, ConcurrentPushPop) {
     std::vector<std::thread> consumers;
 
     for (int i = 0; i < 5; i++)
-        producers.emplace_back([&q]{ q.push([]{}); });
+        producers.emplace_back(cortex::Task([&q] { q.push(cortex::Task([]{})); }));
 
     for (int i = 0; i < 5; i++)
         consumers.emplace_back([&q, &count]{
@@ -127,7 +125,7 @@ TEST(TaskQueueTest, WorkerProcessesTasks) {
     });
 
     for (int i = 0; i < 10; i++)
-        q.push([&count]{ count++; });
+        q.push(cortex::Task([&count]{ count++; }));
 
     std::this_thread::sleep_for(300ms);
     q.stop();
@@ -151,7 +149,7 @@ TEST(TaskQueueTest, MultipleWorkersProcessTasks) {
         });
 
     for (int i = 0; i < 20; i++)
-        q.push([&count]{ count++; });
+        q.push(cortex::Task([&count]{ count++; }));
 
     std::this_thread::sleep_for(300ms);
     q.stop();
@@ -164,10 +162,10 @@ TEST(TaskQueueTest, TaskResultIsCorrect) {
     TaskQueue q;
     int result = 0;
 
-    q.push([&result]{
+    q.push(cortex::Task([&result]{
         for (int i = 1; i <= 100; i++)
             result += i;
-    });
+    }));
 
     auto task = q.pop();
     ASSERT_TRUE(task.has_value());
@@ -178,8 +176,8 @@ TEST(TaskQueueTest, TaskResultIsCorrect) {
 
 TEST(TaskQueueTest, EmptyAfterAllPopped) {
     TaskQueue q;
-    q.push([]{ });
-    q.push([]{ });
+    q.push(cortex::Task([]{ }));
+    q.push(cortex::Task([]{ }));
 
     q.pop();
     q.pop();
