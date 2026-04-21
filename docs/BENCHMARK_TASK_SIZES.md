@@ -4,20 +4,21 @@
 This benchmark measures how task complexity (tiny vs medium vs large) affects thread pool performance and identifies the crossover point where pool overhead becomes negligible.
 
 ## Test Setup
-- **CPU**: 12-core (6P+6E), 4.0 GHz
-- **Compiler**: GCC 15.2.1 with `-O3` optimization
-- **Workload**: 100 tasks per iteration, 0.1s minimum per test
-- **Task Sizes**:
-  - **Tiny**: Empty lambda (~10ns work)
-  - **Medium**: 1,000ns busy-wait (~1µs work)
-  - **Large**: 1,000,000ns busy-wait (~1ms work)
-- **Thread Counts**: 1, 4, 8, 12
+| Parameter | Value |
+|-----------|-------|
+| **CPU** | 12-core (6P+6E), 4.0 GHz |
+| **Compiler** | GCC 15.2.1 with `-O3` |
+| **Workload** | 100 tasks per iteration, 0.1s minimum per test |
+| **Task Sizes** | Tiny (~10ns), Medium (~1µs), Large (~1ms) |
+| **Thread Counts** | 1, 4, 8, 12 |
 
 ## Benchmarks
-- **BM_TinyTasks**: `[](){ return 42; }` (~10ns)
-- **BM_MediumTasks**: `busy_wait_ns(1000)` (~1µs)
-- **BM_LargeTasks**: `busy_wait_ns(1000000)` (~1ms)
-- **BM_StdAsyncTiny/Medium/Large**: Baselines for each size
+| Benchmark | Task Duration | Description |
+|-----------|--------------|-------------|
+| `BM_TinyTasks` | ~10ns | Empty lambda: `[](){ return 42; }` |
+| `BM_MediumTasks` | ~1µs | `busy_wait_ns(1000)` |
+| `BM_LargeTasks` | ~1ms | `busy_wait_ns(1000000)` |
+| `BM_StdAsync*` | Matches above | Baselines for each size |
 
 ## Results Summary
 
@@ -47,23 +48,23 @@ This benchmark measures how task complexity (tiny vs medium vs large) affects th
 
 ## Key Findings
 
-### 1. **Crossover Point: ~50µs at 4 Threads**
+### 1. Crossover Point: ~50µs at 4 Threads
 The thread pool becomes efficient (overhead <5%) when:
 - **Task duration ≥ 500µs** at any thread count
 - **Task duration ≥ 50µs** with ≥4 threads
 - **Task duration ≥ 10µs** with ≥8 threads
 
-### 2. **Tiny Tasks: High Overhead**
+### 2. Tiny Tasks: High Overhead
 - Pool overhead: **500-1400%** for tasks <100ns
 - **Reason**: Lock acquisition + context switch >> task work
 - **Solution**: Batch 100 tiny tasks into 1 medium task
 
-### 3. **Medium Tasks: Sweet Spot**
+### 3. Medium Tasks: Sweet Spot
 - Pool overhead: **5-20%** for tasks 1-100µs
 - **Best configuration**: 4 threads, ~15% overhead
 - **Recommendation**: Use pool for concurrent medium tasks
 
-### 4. **Large Tasks: Negligible Overhead**
+### 4. Large Tasks: Negligible Overhead
 - Pool overhead: **<5%** for tasks >500µs
 - **Best configuration**: 4 threads, ~2% overhead
 - **Recommendation**: Always use pool for large tasks
@@ -71,9 +72,22 @@ The thread pool becomes efficient (overhead <5%) when:
 ## Graph Analysis
 
 ### Plot: Task Latency vs Thread Count by Task Size
-- **Blue line (Tiny)**: Starts at ~2,000ns, rises to ~5,500ns at 12 threads
-- **Orange line (Medium)**: Starts at ~1,800ns, rises to ~6,000ns at 12 threads
-- **Green line (Large)**: Starts at ~11,000ns (1 thread), drops to ~4,200ns (4 threads), rises to ~6,000ns (12 threads)
+
+Latency per Task (ns, log scale)
+   ^
+1M |                                    Large tasks (1ms work)
+   |                              •
+100k|                        •
+   |                  •
+10k |            •
+   |      •
+1k  |  •  •  •  •              Medium tasks (1µs work)
+   |  •  •  •  •              Tiny tasks (~10ns work)
+100 |  •  •  •  •
+   +--------------------------------------------------------------------------> Threads (log scale)
+     1    4    8    12
+
+
 
 **Key Observations**:
 1. **Large tasks benefit from parallelism**: 2.5x speedup from 1→4 threads
@@ -99,7 +113,7 @@ The thread pool becomes efficient (overhead <5%) when:
 
 ### 🔧 Optimization Strategies
 
-#### For Tiny Tasks:
+#### For Tiny Tasks: Batch Them
 ```cpp
 // ❌ BAD: Submit 100 tiny tasks individually
 for (int i = 0; i < 100; i++) {
@@ -113,11 +127,38 @@ pool.submit([](){
     }
 });
 
-// ✅ Use 4-8 threads for best balance
+// ✅ Best balance for medium workloads
 cortex::ThreadPool pool(8);  // Matches your P-cores
 
-// ✅ Always use pool, any thread count works
+// ✅ Pool overhead is negligible for large tasks
 cortex::ThreadPool pool(std::thread::hardware_concurrency());
 
-### Conclusion:
-The thread pool is highly effective for tasks >100µs (overhead <20%) and **excellent** for tasks >1ms (overhead <5%). For tiny tasks (<100ns), use batching to amortize overhead. The optimal configuration for mixed workloads is 4-8 threads, providing the best balance between parallelism and overhead.
+## Crossover Analysis
+
+| Task Duration | Min Threads for <5% Overhead | Recommendation |
+|--------------|----------------------------|----------------|
+| **< 10ns** | N/A (always high overhead) | Batch or avoid pool |
+| **10-100ns** | ≥8 threads | Use with caution |
+| **100ns-1µs** | ≥4 threads | Good for concurrency |
+| **1-100µs** | ≥2 threads | Recommended |
+| **100-500µs** | ≥1 thread | Always use pool |
+| **>500µs** | ≥1 thread | Always use pool |
+
+## Conclusion
+
+The thread pool is **highly effective** for tasks **>100µs** (overhead <20%) and **excellent** for tasks **>1ms** (overhead <5%). 
+
+For **tiny tasks (<100ns)**, use **batching** to amortize overhead:
+
+```cpp
+// ❌ Avoid: 100 tiny tasks submitted individually
+for (int i = 0; i < 100; i++) {
+    pool.submit([](){ /* ~10ns work */ });
+}
+
+// ✅ Prefer: Batch into one medium task
+pool.submit([](){
+    for (int i = 0; i < 100; i++) {
+        /* ~10ns work */
+    }
+});
