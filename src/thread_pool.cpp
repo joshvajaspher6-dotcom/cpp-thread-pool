@@ -20,16 +20,14 @@ cortex::ThreadPool::ThreadPool(int num_threads) : num_threads_(num_threads)
 cortex::ThreadPool::~ThreadPool()
 {
     stop();
-    for (auto& w : workers_) {
-        w->join();
-    }
+    
 }
 
 void cortex::ThreadPool::spawn_worker(int id)
 {
-    workers_.push_back(
-        std::make_unique<Worker>(id, task_queue_, priority_queue_,notify_cv_,notify_mtx_)
-    );
+   auto w =std::make_unique<Worker>(id,task_queue_,priority_queue_,notify_cv_,notify_mtx_);
+   w->start();
+   workers_.push_back(std::move(w));
 }
 
 void cortex::ThreadPool::stop()
@@ -75,7 +73,7 @@ void cortex::ThreadPool::submit(cortex::Task task)
         } catch (...)
         {
             
-            throw;
+            
         }
         pool->active_task_.fetch_sub(1, std::memory_order_relaxed);
         pool->wait_cv_.notify_all();
@@ -95,7 +93,7 @@ void cortex::ThreadPool::submit(cortex::Task task, Priority priority)
         } 
         catch (...) 
         {
-            throw; 
+           
         }
         pool->active_task_.fetch_sub(1, std::memory_order_relaxed);
         pool->wait_cv_.notify_all();

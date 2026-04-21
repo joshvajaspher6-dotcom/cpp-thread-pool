@@ -31,6 +31,7 @@ namespace cortex
             void run();
             bool is_busy() const;
             int id() const;
+            void start();
             void request_stop()
             {
                 should_stop_.store(true);
