@@ -112,3 +112,12 @@ pool.submit([](){
         /* tiny work */
     }
 });
+
+// ✅ Use 4-8 threads for best balance
+cortex::ThreadPool pool(8);  // Matches your P-cores
+
+// ✅ Always use pool, any thread count works
+cortex::ThreadPool pool(std::thread::hardware_concurrency());
+
+### Conclusion:
+The thread pool is highly effective for tasks >100µs (overhead <20%) and **excellent** for tasks >1ms (overhead <5%). For tiny tasks (<100ns), use batching to amortize overhead. The optimal configuration for mixed workloads is 4-8 threads, providing the best balance between parallelism and overhead.
