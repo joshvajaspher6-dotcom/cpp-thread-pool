@@ -11,6 +11,9 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
 find_package(Threads REQUIRED)
 
+# ──────────────────────────────────────────────────────────────
+# 📦 Library Target
+# ──────────────────────────────────────────────────────────────
 add_library(thread_pool_lib
     src/task_queue.cpp
     src/thread_pool.cpp
@@ -25,10 +28,9 @@ target_include_directories(thread_pool_lib
 
 target_link_libraries(thread_pool_lib PUBLIC Threads::Threads)
 
-add_executable(demo src/main.cpp)
-target_link_libraries(demo PRIVATE thread_pool_lib)
-
-# GoogleTest setup
+# ──────────────────────────────────────────────────────────────
+# 🧪 GoogleTest Setup (for unit tests)
+# ──────────────────────────────────────────────────────────────
 include(FetchContent)
 FetchContent_Declare(
     googletest
@@ -37,8 +39,6 @@ FetchContent_Declare(
 )
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
-
-# ✅ CRITICAL: Load GoogleTest CMake helpers
 include(GoogleTest)
 
 # Test executables
@@ -58,10 +58,12 @@ foreach(test_name ${TEST_TARGETS})
             gtest_main
             Threads::Threads
     )
-    # ✅ Now this works:
     gtest_discover_tests(${test_name})
 endforeach()
 
+# ──────────────────────────────────────────────────────────────
+# 📊 Google Benchmark Setup (for performance tests)
+# ──────────────────────────────────────────────────────────────
 FetchContent_Declare(
     googlebenchmark
     URL https://github.com/google/benchmark/archive/refs/tags/v1.8.3.zip
@@ -75,4 +77,26 @@ target_link_libraries(bench_thread_pool PRIVATE
     benchmark::benchmark 
     Threads::Threads
 )
+
+# ──────────────────────────────────────────────────────────────
+# ✅ Enable Testing & Install Rules
+# ──────────────────────────────────────────────────────────────
 enable_testing()
+
+include(GNUInstallDirs)
+
+install(TARGETS thread_pool_lib
+    EXPORT CortexThreadpoolTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/cortex
+)
+
+install(EXPORT CortexThreadpoolTargets
+    FILE CortexThreadpoolTargets.cmake
+    NAMESPACE Cortex::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/CortexThreadpool
+)
