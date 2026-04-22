@@ -64,7 +64,7 @@ endforeach()
 # ──────────────────────────────────────────────────────────────
 # 📊 Google Benchmark Setup (for performance tests)
 # ──────────────────────────────────────────────────────────────
-FFetchContent_Declare(
+FetchContent_Declare(
     googlebenchmark
     URL https://github.com/google/benchmark/archive/refs/tags/v1.9.0.zip
     DOWNLOAD_EXTRACT_TIMESTAMP true
