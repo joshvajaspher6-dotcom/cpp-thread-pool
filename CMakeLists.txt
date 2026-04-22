@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ── Compiler flags ─────────────────────────────────────────────
 if(MSVC)
-    add_compile_options(/W4 /EHsc /MP)
+    add_compile_options(/W4 /EHsc /MP/wd4324)
     add_compile_definitions($<$<CONFIG:Release>:NDEBUG>)
 else()
     add_compile_options(-Wall)

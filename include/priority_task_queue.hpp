@@ -88,7 +88,7 @@ struct PrioritizedTask
                 return queue_.empty();
             }
 
-            int size() const
+            size_t size() const
             {
                 std::lock_guard<std::mutex> lock(mtx_);
                 return queue_.size();
