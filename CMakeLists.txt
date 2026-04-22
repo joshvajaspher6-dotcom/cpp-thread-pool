@@ -64,14 +64,17 @@ endforeach()
 # ──────────────────────────────────────────────────────────────
 # 📊 Google Benchmark Setup (for performance tests)
 # ──────────────────────────────────────────────────────────────
-FetchContent_Declare(
+FFetchContent_Declare(
     googlebenchmark
-    URL https://github.com/google/benchmark/archive/refs/tags/v1.8.3.zip
+    URL https://github.com/google/benchmark/archive/refs/tags/v1.9.0.zip
     DOWNLOAD_EXTRACT_TIMESTAMP true
 )
+
+# 🔧 Skip all internal tests & docs (only needed for library usage)
 set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
 set(BENCHMARK_INSTALL_DOCS OFF CACHE BOOL "" FORCE)
+
 FetchContent_MakeAvailable(googlebenchmark)
 
 add_executable(bench_thread_pool benchmarks/bench_thread_pool.cpp)
@@ -80,7 +83,6 @@ target_link_libraries(bench_thread_pool PRIVATE
     benchmark::benchmark 
     Threads::Threads
 )
-
 # ──────────────────────────────────────────────────────────────
 # ✅ Enable Testing & Install Rules
 # ──────────────────────────────────────────────────────────────
