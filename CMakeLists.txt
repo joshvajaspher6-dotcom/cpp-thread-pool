@@ -69,6 +69,7 @@ FetchContent_Declare(
     URL https://github.com/google/benchmark/archive/refs/tags/v1.8.3.zip
     DOWNLOAD_EXTRACT_TIMESTAMP true
 )
+set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googlebenchmark)
 
 add_executable(bench_thread_pool benchmarks/bench_thread_pool.cpp)
