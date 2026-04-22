@@ -70,6 +70,8 @@ FetchContent_Declare(
     DOWNLOAD_EXTRACT_TIMESTAMP true
 )
 set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_INSTALL_DOCS OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googlebenchmark)
 
 add_executable(bench_thread_pool benchmarks/bench_thread_pool.cpp)
