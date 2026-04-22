@@ -5,11 +5,20 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+# ── Compiler flags (per-compiler, not global) ──────────────────
+if(MSVC)
+    add_compile_options(/W4 /EHsc /MP)
+    add_compile_definitions($<$<CONFIG:Release>:NDEBUG>)
+else()
+    add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options($<$<CONFIG:Debug>:-g -O0>)
+    add_compile_options($<$<CONFIG:Release>:-O3>)
+    add_compile_definitions($<$<CONFIG:Release>:NDEBUG>)
+endif()
 
 find_package(Threads REQUIRED)
+
+enable_testing()  # ← Must be here, before any gtest_discover_tests()
 
 # ──────────────────────────────────────────────────────────────
 # 📦 Library Target
@@ -29,7 +38,7 @@ target_include_directories(thread_pool_lib
 target_link_libraries(thread_pool_lib PUBLIC Threads::Threads)
 
 # ──────────────────────────────────────────────────────────────
-# 🧪 GoogleTest Setup (for unit tests)
+# 🧪 GoogleTest Setup
 # ──────────────────────────────────────────────────────────────
 include(FetchContent)
 FetchContent_Declare(
@@ -38,10 +47,11 @@ FetchContent_Declare(
     DOWNLOAD_EXTRACT_TIMESTAMP true
 )
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+# Prevent GoogleTest from overriding MSVC runtime on Windows
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
-# Test executables
 set(TEST_TARGETS
     test_task_queue
     test_thread_pool
@@ -62,32 +72,29 @@ foreach(test_name ${TEST_TARGETS})
 endforeach()
 
 # ──────────────────────────────────────────────────────────────
-# 📊 Google Benchmark Setup (for performance tests)
+# 📊 Google Benchmark Setup
 # ──────────────────────────────────────────────────────────────
 FetchContent_Declare(
     googlebenchmark
-    URL https://github.com/google/benchmark/archive/refs/tags/v1.9.0.zip
+    URL https://github.com/google/benchmark/archive/refs/tags/v1.8.3.zip
     DOWNLOAD_EXTRACT_TIMESTAMP true
 )
-
-# 🔧 Skip all internal tests & docs (only needed for library usage)
 set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
 set(BENCHMARK_INSTALL_DOCS OFF CACHE BOOL "" FORCE)
-
+set(BENCHMARK_USE_LIBCXX OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googlebenchmark)
 
 add_executable(bench_thread_pool benchmarks/bench_thread_pool.cpp)
-target_link_libraries(bench_thread_pool PRIVATE 
-    thread_pool_lib 
-    benchmark::benchmark 
+target_link_libraries(bench_thread_pool PRIVATE
+    thread_pool_lib
+    benchmark::benchmark
     Threads::Threads
 )
-# ──────────────────────────────────────────────────────────────
-# ✅ Enable Testing & Install Rules
-# ──────────────────────────────────────────────────────────────
-enable_testing()
 
+# ──────────────────────────────────────────────────────────────
+# ✅ Install Rules
+# ──────────────────────────────────────────────────────────────
 include(GNUInstallDirs)
 
 install(TARGETS thread_pool_lib
