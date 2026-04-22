@@ -5,20 +5,23 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# ── Compiler flags (per-compiler, not global) ──────────────────
+# ── Compiler flags ─────────────────────────────────────────────
 if(MSVC)
     add_compile_options(/W4 /EHsc /MP)
     add_compile_definitions($<$<CONFIG:Release>:NDEBUG>)
 else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
-    add_compile_options($<$<CONFIG:Debug>:-g -O0>)
+    add_compile_options(-Wall)
+    add_compile_options(-Wextra)
+    add_compile_options(-Wpedantic)
+    add_compile_options($<$<CONFIG:Debug>:-g>)
+    add_compile_options($<$<CONFIG:Debug>:-O0>)
     add_compile_options($<$<CONFIG:Release>:-O3>)
     add_compile_definitions($<$<CONFIG:Release>:NDEBUG>)
 endif()
 
 find_package(Threads REQUIRED)
 
-enable_testing()  # ← Must be here, before any gtest_discover_tests()
+enable_testing()
 
 # ──────────────────────────────────────────────────────────────
 # 📦 Library Target
@@ -41,13 +44,13 @@ target_link_libraries(thread_pool_lib PUBLIC Threads::Threads)
 # 🧪 GoogleTest Setup
 # ──────────────────────────────────────────────────────────────
 include(FetchContent)
+
 FetchContent_Declare(
     googletest
     URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
     DOWNLOAD_EXTRACT_TIMESTAMP true
 )
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
-# Prevent GoogleTest from overriding MSVC runtime on Windows
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
@@ -79,10 +82,10 @@ FetchContent_Declare(
     URL https://github.com/google/benchmark/archive/refs/tags/v1.8.3.zip
     DOWNLOAD_EXTRACT_TIMESTAMP true
 )
-set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_TESTING   OFF CACHE BOOL "" FORCE)
 set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
-set(BENCHMARK_INSTALL_DOCS OFF CACHE BOOL "" FORCE)
-set(BENCHMARK_USE_LIBCXX OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_INSTALL_DOCS     OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_USE_LIBCXX       OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googlebenchmark)
 
 add_executable(bench_thread_pool benchmarks/bench_thread_pool.cpp)
