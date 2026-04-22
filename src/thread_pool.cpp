@@ -76,7 +76,7 @@ void cortex::ThreadPool::submit(cortex::Task task)
             
         }
         pool->active_task_.fetch_sub(1, std::memory_order_relaxed);
-        pool->wait_cv_.notify_all();
+        pool->wait_cv_.notify_one();
     }));
     notify_cv_.notify_one();
 }
@@ -96,7 +96,7 @@ void cortex::ThreadPool::submit(cortex::Task task, Priority priority)
            
         }
         pool->active_task_.fetch_sub(1, std::memory_order_relaxed);
-        pool->wait_cv_.notify_all();
+        pool->wait_cv_.notify_one();
     }), priority);
     notify_cv_.notify_one();
 }
@@ -118,12 +118,12 @@ void cortex::ThreadPool::submit(cortex::Task task, std::shared_ptr<CancellationT
                                    pool = this]() mutable {
         if (tok->is_cancelled()) {
             pool->active_task_.fetch_sub(1, std::memory_order_relaxed);
-            pool->wait_cv_.notify_all();
+            pool->wait_cv_.notify_one();
             return;
         }
         try { inner(); } catch (...) {}
         pool->active_task_.fetch_sub(1, std::memory_order_relaxed);
-        pool->wait_cv_.notify_all();
+        pool->wait_cv_.notify_one();
     })); 
 
     

@@ -25,8 +25,8 @@ namespace cortex
         TaskQueue                            task_queue_;
         PriorityTaskQueue                    priority_queue_;
         std::vector<std::unique_ptr<Worker>> workers_;
-        std::atomic<bool>                    shutdown_{false};
-        std::atomic<int>                     active_task_{0};
+        alignas(64) std::atomic<bool>                    shutdown_{false};
+        alignas(64) std::atomic<int>                     active_task_{0};
         std::atomic<int>                     num_threads_;
         std::mutex                           wait_mutex_;
         std::condition_variable              wait_cv_;
