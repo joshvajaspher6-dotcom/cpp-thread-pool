@@ -32,9 +32,16 @@ void cortex::ThreadPool::spawn_worker(int id)
 
 void cortex::ThreadPool::stop()
 {
+   
     bool expected = false;
     if (!shutdown_.compare_exchange_strong(expected, true)) return;
 
+    
+    for (auto& w : workers_) {
+        w->request_stop();
+    }
+
+    
     task_queue_.stop();
     priority_queue_.stop();
     task_queue_.wake_all();
@@ -46,22 +53,15 @@ void cortex::ThreadPool::stop()
         notify_cv_.notify_all();
     }
 
-    
+   
     for (auto& w : workers_) {
-        w->request_stop();
+        if (w) w->join();
     }
 
     
-    {
-        std::lock_guard<std::mutex> lock(notify_mtx_);
-        notify_cv_.notify_all();
-    }
-
-    for (auto& w : workers_) {
-        w->join();
-    }
+    workers_.clear();
+    num_threads_ = 0;
 }
-
 void cortex::ThreadPool::submit(cortex::Task task)
 {
     if (shutdown_) return;
@@ -167,50 +167,58 @@ void cortex::ThreadPool::wait_any()
     });
 }
 
-void cortex::ThreadPool::resize(int new_size)
-{
-    if (new_size > num_threads_)
-    {
-        while (num_threads_ < new_size)
-        {
-            spawn_worker(num_threads_);
-            num_threads_++;
+void cortex::ThreadPool::resize(int new_size) {
+    if (new_size < 0) new_size = 0;
+    int current = static_cast<int>(workers_.size());
+    if (new_size == current) return;
+
+    if (new_size > current) {
+       
+        for (int i = current; i < new_size; ++i) {
+            
+            auto w = std::make_unique<Worker>(
+                i, 
+                task_queue_, 
+                priority_queue_, 
+                notify_cv_, 
+                notify_mtx_
+            );
+            w->start();
+            workers_.push_back(std::move(w));
         }
-    }
-    else if (new_size < num_threads_)
-    {
-        int to_remove = num_threads_ - new_size;
+    } else {
         
-        std::vector<std::unique_ptr<Worker>> workers_to_join;
-         for (int i = 0; i < to_remove && !workers_.empty(); i++)
-        {
-            auto w = std::move(workers_.back());
-            workers_.pop_back();
-            w->request_stop();
-            workers_to_join.push_back(std::move(w));
-        }
+        std::vector<std::unique_ptr<Worker>> to_remove;
         
-    
+        
         {
             std::lock_guard<std::mutex> lock(notify_mtx_);
-            notify_cv_.notify_all();
+            int count_to_remove = current - new_size;
+            for (int i = 0; i < count_to_remove && !workers_.empty(); ++i) {
+                to_remove.push_back(std::move(workers_.back()));
+                workers_.pop_back();
+            }
+        } 
+
+        
+        for (auto& w : to_remove) {
+            w->request_stop();
         }
         
-      
+       
+        notify_cv_.notify_all();
         task_queue_.wake_all();
         priority_queue_.wake_all();
 
-       
-        for (auto& w : workers_to_join)
-        {
+        
+        for (auto& w : to_remove) {
             w->join();
         }
-
-        num_threads_ = new_size;
     }
+    
+
+    num_threads_ = new_size;
 }
-
-
 int cortex::ThreadPool::active_tasks() const
 {
     return active_task_;

@@ -1,4 +1,4 @@
-// src/worker.cpp
+
 #include "../include/worker.hpp"
 #include "../include/task.hpp"
 #include <optional>
@@ -29,41 +29,43 @@ void cortex::Worker::run()
 {
     try 
     {
-        std::unique_lock<std::mutex> lock(notify_mtx_, std::defer_lock);
         
-        while (!should_stop_.load()) 
+        std::unique_lock<std::mutex> lock(notify_mtx_);
+        
+        while (true) 
         {
-            auto task = priority_queue_.try_pop();
+            
+            notify_cv_.wait(lock, [this] {
+                return should_stop_.load(std::memory_order_acquire) || 
+                       !priority_queue_.empty() || 
+                       !queue_.empty();
+            });
+            
+            
+            if (should_stop_.load(std::memory_order_acquire)) break;
+            
+           
+            std::optional<cortex::Task> task = priority_queue_.try_pop();
             if (!task) task = queue_.try_pop();
             
-            if (!task) 
-            {
-                lock.lock();
-                notify_cv_.wait(lock, [this] 
-                    {
-                    return should_stop_.load() || !priority_queue_.empty() || !queue_.empty();
-                });
-                lock.unlock();
-                
-                if (should_stop_.load()) break;
-                
-                task = priority_queue_.try_pop();
-                if (!task) task = queue_.try_pop();
-            }
+            if (!task) continue; 
             
-            if (task) 
-            {
-                busy_ = true;
-                (*task)();
-                busy_ = false;
-            }
+           
+            lock.unlock();
+            
+            busy_ = true;
+            try { (*task)(); } catch (...) {}
+            busy_ = false;
+            
+            
+            lock.lock();
         }
-    } catch (...) 
+    } 
+    catch (...) 
     {
         
     }
 }
-
 bool cortex::Worker::is_busy() const 
 { 
     return busy_; 

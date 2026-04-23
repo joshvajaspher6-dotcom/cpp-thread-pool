@@ -34,7 +34,7 @@ namespace cortex
             void start();
             void request_stop()
             {
-                should_stop_.store(true);
+                 should_stop_.store(true, std::memory_order_release); 
             }
 
             void join() 
