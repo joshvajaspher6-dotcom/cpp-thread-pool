@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ── Compiler flags ─────────────────────────────────────────────
 if(MSVC)
-    add_compile_options(/W4 /EHsc /MP/wd4324)
+    add_compile_options(/W4 /EHsc)
     add_compile_definitions($<$<CONFIG:Release>:NDEBUG>)
 else()
     add_compile_options(-Wall)
@@ -40,6 +40,11 @@ target_include_directories(thread_pool_lib
 
 target_link_libraries(thread_pool_lib PUBLIC Threads::Threads)
 
+# Suppress intentional padding warning only on this target
+if(MSVC)
+    target_compile_options(thread_pool_lib PRIVATE /wd4324)
+endif()
+
 # ──────────────────────────────────────────────────────────────
 # 🧪 GoogleTest Setup
 # ──────────────────────────────────────────────────────────────
@@ -71,6 +76,10 @@ foreach(test_name ${TEST_TARGETS})
             gtest_main
             Threads::Threads
     )
+    # Suppress padding warning on test targets too
+    if(MSVC)
+        target_compile_options(${test_name} PRIVATE /wd4324 /wd4267)
+    endif()
     gtest_discover_tests(${test_name})
 endforeach()
 
@@ -82,10 +91,10 @@ FetchContent_Declare(
     URL https://github.com/google/benchmark/archive/refs/tags/v1.8.3.zip
     DOWNLOAD_EXTRACT_TIMESTAMP true
 )
-set(BENCHMARK_ENABLE_TESTING   OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_TESTING     OFF CACHE BOOL "" FORCE)
 set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
-set(BENCHMARK_INSTALL_DOCS     OFF CACHE BOOL "" FORCE)
-set(BENCHMARK_USE_LIBCXX       OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_INSTALL_DOCS       OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_USE_LIBCXX         OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googlebenchmark)
 
 add_executable(bench_thread_pool benchmarks/bench_thread_pool.cpp)
@@ -94,6 +103,13 @@ target_link_libraries(bench_thread_pool PRIVATE
     benchmark::benchmark
     Threads::Threads
 )
+if(MSVC)
+    target_compile_options(bench_thread_pool PRIVATE
+        /wd4324   # padded due to alignas — intentional
+        /wd4267   # size_t to int conversion
+        /wd4996   # std::result_of deprecated — use invoke_result when you can
+    )
+endif()
 
 # ──────────────────────────────────────────────────────────────
 # ✅ Install Rules
