@@ -3,7 +3,6 @@
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Release-v1.0.0-blue.svg)](https://github.com/joshvajasubre6-dotcom/cpp-thread-pool/releases)
-[![CI](https://github.com/joshvajasubre6-dotcom/cpp-thread-pool/actions/workflows/ci.yml/badge.svg)](https://github.com/joshvajasubre6-dotcom/cpp-thread-pool/actions)
 [![Build](https://img.shields.io/badge/Build-CMake-orange.svg)](CMakeLists.txt)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
@@ -324,4 +323,4 @@ Distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
 
 ---
 
-*Maintainer: Josh Vajas | C++17 | Production-Ready v1.0.0*
+*Maintainer: Joshva Jashper W | C++17 | Production-Ready v1.0.0*
