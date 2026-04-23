@@ -6,7 +6,7 @@
 [![Build](https://img.shields.io/badge/Build-CMake-orange.svg)](CMakeLists.txt)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
-A high-performance, zero-copy C++17 thread pool optimized for modern multi-core architectures. Delivers **10–14x faster** task execution than `std::async` with intelligent lock contention reduction, cache-aware synchronization, priority scheduling, task cancellation, timeout support, and `.then()` chaining — all with **zero external dependencies**.
+A high-performance, C++17 thread pool optimized for modern multi-core architectures. Delivers **10–14x faster** task execution than `std::async` with intelligent lock contention reduction, cache-aware synchronization, priority scheduling, task cancellation, timeout support, and `.then()` chaining — all with **zero external dependencies**.
 
 ---
 
