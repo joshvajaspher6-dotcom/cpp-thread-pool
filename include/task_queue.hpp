@@ -27,6 +27,6 @@ namespace cortex
             void stop();
             void wake_all();
             bool empty() const;
-            int size() const;
+            size_t size() const;
     };
 }

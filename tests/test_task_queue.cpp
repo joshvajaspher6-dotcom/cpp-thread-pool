@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include <atomic>
 #include <thread>
+#include <chrono>
 #include <vector>
 #include "../include/task.hpp"
 using namespace std::chrono_literals;

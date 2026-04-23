@@ -1,5 +1,6 @@
 #include "../include/task_queue.hpp"
 #include "../include/task.hpp"
+#include <cstddef>
 #include <mutex>
 #include <optional>
 
@@ -55,7 +56,7 @@ bool cortex::TaskQueue::empty() const
      return queue_.empty();
 }
 
-int cortex::TaskQueue::size() const
+size_t cortex::TaskQueue::size() const
 {
      std::lock_guard<std::mutex>lock(mtx_);
      return queue_.size();

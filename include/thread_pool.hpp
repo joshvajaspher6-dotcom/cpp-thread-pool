@@ -59,7 +59,7 @@ namespace cortex
             submit([promise, func = std::forward<F>(func)]() mutable {
                 try {
                     promise->set_value(func());
-                } catch (const std::exception& e) {
+                } catch (const std::exception& ) {
                     promise->set_exception(std::current_exception());
                 }
             });
