@@ -8,9 +8,6 @@ on:
     branches: [ main ]
 
 jobs:
-  # ──────────────────────────────────────────────────────────────
-  # Build & Test on all 3 platforms
-  # ──────────────────────────────────────────────────────────────
   build-and-test:
     name: ${{ matrix.os }} / ${{ matrix.build-type }}
     runs-on: ${{ matrix.os }}
@@ -25,11 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure CMake
-        run: |
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} \
-            -DCORTEX_BUILD_TESTS=ON \
-            -DCORTEX_BUILD_BENCHMARKS=ON
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} -DCORTEX_BUILD_TESTS=ON -DCORTEX_BUILD_BENCHMARKS=ON
 
       - name: Build
         run: cmake --build build --config ${{ matrix.build-type }} --parallel
@@ -38,9 +31,6 @@ jobs:
         working-directory: build
         run: ctest --output-on-failure -C ${{ matrix.build-type }} --timeout 120
 
-  # ──────────────────────────────────────────────────────────────
-  # Auto Release — only on version tags, only if all tests pass
-  # ──────────────────────────────────────────────────────────────
   release:
     name: Create GitHub Release
     needs: build-and-test
@@ -53,7 +43,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # needed for full changelog
+          fetch-depth: 0
 
       - name: Extract version
         id: version
@@ -63,41 +53,33 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
-          name: "🧠 Cortex Thread Pool ${{ steps.version.outputs.VERSION }}"
+          name: "Cortex Thread Pool ${{ steps.version.outputs.VERSION }}"
           draft: false
           prerelease: false
           body: |
-            ## 🧠 Cortex Thread Pool ${{ steps.version.outputs.VERSION }}
+            ## Cortex Thread Pool ${{ steps.version.outputs.VERSION }}
 
-            A high-performance, zero-copy C++17 thread pool — **10–14x faster** than `std::async`.
+            A high-performance, zero-copy C++17 thread pool — 10-14x faster than std::async.
 
-            ### ✨ What's Included
-            - Zero-copy task submission with 128-byte SBO `Task` type
-            - Dual queue: FIFO `TaskQueue` + heap-based `PriorityTaskQueue`
-            - Priority scheduling: `LOW` / `MEDIUM` / `HIGH` / `CRITICAL`
-            - `TimedFuture<T>` with `.then()` chaining and timeout support
-            - `CancellationToken` + `TaskGroup` for batch control
-            - Dynamic `resize()` at runtime without stopping the pool
+            ### What's Included
+            - Zero-copy task submission with 128-byte SBO Task type
+            - Dual queue: FIFO TaskQueue + heap-based PriorityTaskQueue
+            - Priority scheduling: LOW / MEDIUM / HIGH / CRITICAL
+            - TimedFuture<T> with .then() chaining and timeout support
+            - CancellationToken + TaskGroup for batch control
+            - Dynamic resize() at runtime without stopping the pool
             - 31 tests, 100% passing on Linux, macOS, and Windows
 
-            ### 📊 Performance vs `std::async`
-            | Threads | Latency | Speedup |
-            |---------|---------|---------|
-            | 1       | 2,208 ns | **14.7x** |
-            | 4       | 3,108 ns | **10.4x** |
-            | 8       | 4,784 ns | **6.8x**  |
-            | 32      | 13,504 ns | **2.4x** |
+            ### Performance vs std::async
+            | Threads | Latency   | Speedup   |
+            |---------|-----------|-----------|
+            | 1       | 2,208 ns  | 14.7x     |
+            | 4       | 3,108 ns  | 10.4x     |
+            | 8       | 4,784 ns  | 6.8x      |
+            | 32      | 13,504 ns | 2.4x      |
 
-            ### 📦 Integration
-```cmake
-            find_package(CortexThreadpool REQUIRED)
-            target_link_libraries(your_target PRIVATE Cortex::thread_pool_lib)
-```
-
-            ### 🔧 Build from Source
-```bash
+            ### Build from Source
             mkdir build && cd build
             cmake .. -DCMAKE_BUILD_TYPE=Release
             cmake --build . -j$(nproc)
             ctest --output-on-failure
-```
