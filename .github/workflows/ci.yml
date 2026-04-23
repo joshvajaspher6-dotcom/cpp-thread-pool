@@ -68,7 +68,7 @@ jobs:
             - TimedFuture<T> with .then() chaining and timeout support
             - CancellationToken + TaskGroup for batch control
             - Dynamic resize() at runtime without stopping the pool
-            - 31 tests, 100% passing on Linux and macOS
+            - 31 tests, 100% passing on Linux, macOS, and Windows
 
             ### Performance vs std::async
             | Threads | Latency   | Speedup   |
