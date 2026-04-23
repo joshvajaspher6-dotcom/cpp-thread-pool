@@ -9,7 +9,8 @@
 #include <functional>
 #include <thread>
 #include <future>
-#include <stdexcept> 
+#include <stdexcept>
+#include <new>
 #include "priority.hpp"
 #include "priority_task_queue.hpp"
 #include "task_queue.hpp"
@@ -25,19 +26,31 @@ namespace cortex
         TaskQueue                            task_queue_;
         PriorityTaskQueue                    priority_queue_;
         std::vector<std::unique_ptr<Worker>> workers_;
-        alignas(64) std::atomic<bool>                    shutdown_{false};
-        alignas(64) std::atomic<int>                     active_task_{0};
+
+        alignas(64) std::atomic<bool>        shutdown_{false};
+        alignas(64) std::atomic<int>         active_task_{0};
+        alignas(64) std::atomic<int>         pending_submit_{0};
+
         std::atomic<int>                     num_threads_;
         std::mutex                           wait_mutex_;
+        std::mutex                           resize_mutex_;
         std::condition_variable              wait_cv_;
-        std::condition_variable notify_cv_;
-        std::mutex notify_mtx_;
+        std::condition_variable              notify_cv_;
+        std::mutex                           notify_mtx_;
 
         void spawn_worker(int id);
 
     public:
+        // Fix Windows heap corruption from alignas(64) members
+        void* operator new(std::size_t size) {
+            return ::operator new(size, std::align_val_t{64});
+        }
+        void operator delete(void* ptr) noexcept {
+            ::operator delete(ptr, std::align_val_t{64});
+        }
+
         explicit ThreadPool(int num_threads =
-            std::thread::hardware_concurrency());
+            static_cast<int>(std::thread::hardware_concurrency()));
         ~ThreadPool();
 
         void submit(std::function<void()> task);
@@ -48,25 +61,25 @@ namespace cortex
         void submit(cortex::Task task, Priority priority);
         void submit(cortex::Task task, std::shared_ptr<CancellationToken> token);
 
-        
+        // submit_task: uses invoke_result (result_of is deprecated in C++17)
         template<typename F>
-        auto submit_task(F && func) -> std::future<typename std::result_of<F()>::type>
+        auto submit_task(F&& func) -> std::future<typename std::invoke_result<F>::type>
         {
-            using return_type = typename std::result_of<F()>::type;
+            using return_type = typename std::invoke_result<F>::type;
             auto promise = std::make_shared<std::promise<return_type>>();
             std::future<return_type> future = promise->get_future();
 
             submit([promise, func = std::forward<F>(func)]() mutable {
                 try {
                     promise->set_value(func());
-                } catch (const std::exception& ) {
+                } catch (...) {
                     promise->set_exception(std::current_exception());
                 }
             });
             return future;
         }
 
-           template<typename F, typename... Args>
+        template<typename F, typename... Args>
         auto submit_with_timeout(F&& f, Args&&... args)
             -> TimedFuture<
                 typename std::invoke_result<
@@ -85,26 +98,23 @@ namespace cortex
 
             std::future<ReturnType> future = task->get_future();
 
-            
             auto wrapped = [this, task]() {
-                try 
-                {
-                    (*task)(); 
-                } catch (...) 
-                {
-                    
-                }
-                
+                try {
+                    (*task)();
+                } catch (...) {}
                 active_task_.fetch_sub(1, std::memory_order_release);
                 wait_cv_.notify_all();
             };
 
+            pending_submit_.fetch_add(1, std::memory_order_relaxed);
             active_task_.fetch_add(1, std::memory_order_relaxed);
 
             if (!shutdown_) {
                 task_queue_.push(cortex::Task(std::move(wrapped)));
-                notify_cv_.notify_one(); 
+                pending_submit_.fetch_sub(1, std::memory_order_release);
+                notify_cv_.notify_one();
             } else {
+                pending_submit_.fetch_sub(1, std::memory_order_release);
                 active_task_.fetch_sub(1, std::memory_order_relaxed);
                 wait_cv_.notify_all();
                 throw std::runtime_error("cannot submit :: threadpool is shutting down");
@@ -113,7 +123,6 @@ namespace cortex
             return TimedFuture<ReturnType>(std::move(future));
         }
 
-        
         void stop();
         void wait_all();
         void wait_any();
