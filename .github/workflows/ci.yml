@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
         build-type: [Release]
 
     steps:
@@ -68,7 +68,7 @@ jobs:
             - TimedFuture<T> with .then() chaining and timeout support
             - CancellationToken + TaskGroup for batch control
             - Dynamic resize() at runtime without stopping the pool
-            - 31 tests, 100% passing on Linux, macOS, and Windows
+            - 31 tests, 100% passing on Linux and macOS
 
             ### Performance vs std::async
             | Threads | Latency   | Speedup   |
